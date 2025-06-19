@@ -4,7 +4,7 @@ use winit::{
     dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
+    window::{Window, WindowAttributes, WindowId},
 };
 
 const WIDTH: u32 = 400;
@@ -15,27 +15,54 @@ struct Renderer {
     pixels: Pixels,
 }
 
-struct App {
-    renderer: Option<Renderer>,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+impl Renderer {
+    fn new(event_loop: &ActiveEventLoop) -> Result<Self, Error> {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         let scaled_size = LogicalSize::new(WIDTH as f64 * 3.0, HEIGHT as f64 * 3.0);
-        let window_attributes = Window::default_attributes()
+        let window_attributes = WindowAttributes::default()
             .with_title("Renderer")
             .with_inner_size(scaled_size)
             .with_min_inner_size(size);
 
         let window = event_loop.create_window(window_attributes).unwrap();
         let window_size = window.inner_size();
-
-        // Note: window is moved into SurfaceTexture::new
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture).unwrap();
+        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
 
-        self.renderer = Some(Renderer { window, pixels });
+        Ok(Self { window, pixels })
+    }
+
+    fn render(&mut self) -> Result<(), Error> {
+        let frame = self.pixels.frame_mut();
+
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                let offset = ((y * WIDTH + x) * 4) as usize;
+                frame[offset] = x as u8; // R
+                frame[offset + 1] = y as u8; // G
+                frame[offset + 2] = 128; // B
+                frame[offset + 3] = 255; // A
+            }
+        }
+
+        self.pixels.render()?;
+        self.window.request_redraw();
+
+        Ok(())
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.pixels.resize_surface(width, height);
+    }
+}
+
+struct App {
+    renderer: Option<Renderer>,
+}
+
+impl ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        self.renderer = Some(Renderer::new(event_loop).unwrap());
     }
 
     fn window_event(
@@ -49,26 +76,13 @@ impl ApplicationHandler for App {
 
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
-                    let frame = renderer.pixels.frame_mut();
-
-                    for y in 0..HEIGHT {
-                        for x in 0..WIDTH {
-                            let offset = ((y * WIDTH + x) * 4) as usize;
-                            frame[offset] = x as u8; // R
-                            frame[offset + 1] = y as u8; // G
-                            frame[offset + 2] = 128; // B
-                            frame[offset + 3] = 255; // A
-                        }
-                    }
-
-                    renderer.pixels.render().unwrap();
-                    renderer.window.request_redraw();
+                    renderer.render().unwrap();
                 }
             }
 
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer.pixels.resize_surface(size.width, size.height);
+                    renderer.resize(size.width, size.height);
                 }
             }
 
