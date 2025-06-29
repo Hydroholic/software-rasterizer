@@ -1,101 +1,82 @@
-use pixels::{Error, Pixels, SurfaceTexture};
-use winit::{
-    application::ApplicationHandler,
-    dpi::LogicalSize,
-    event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowAttributes, WindowId},
-};
+use std::{error::Error, sync::{Arc, Mutex}, thread, time::Duration};
+use winit::event_loop::{ControlFlow, EventLoop};
 
-const WIDTH: u32 = 400;
-const HEIGHT: u32 = 300;
+use vector::Vector2;
 
-struct Renderer {
-    window: Window,
-    pixels: Pixels,
-}
+pub mod renderer;
+pub mod vector;
 
-impl Renderer {
-    fn new(event_loop: &ActiveEventLoop) -> Result<Self, Error> {
-        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-        let scaled_size = LogicalSize::new(WIDTH as f64 * 3.0, HEIGHT as f64 * 3.0);
-        let window_attributes = WindowAttributes::default()
-            .with_title("Renderer")
-            .with_inner_size(scaled_size)
-            .with_min_inner_size(size);
+const WIDTH: usize = 128;
+const HEIGHT: usize = 64;
 
-        let window = event_loop.create_window(window_attributes).unwrap();
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let pixels = Pixels::new(WIDTH, HEIGHT, surface_texture)?;
 
-        Ok(Self { window, pixels })
-    }
+fn triangle_image() -> Vec<renderer::RGBA> {
+    let mut buffer = vec![renderer::RGBA { r: 0, g: 0, b: 0, a: 255 }; WIDTH * HEIGHT];
 
-    fn render(&mut self) -> Result<(), Error> {
-        let frame = self.pixels.frame_mut();
+    let rf = { || rand::random_range(0f32..=1f32) };
+    let color = renderer::RGBA {
+        r: rand::random(),
+        g: rand::random(),
+        b: rand::random(),
+        a: 255,
+    };
 
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let offset = ((y * WIDTH + x) * 4) as usize;
-                frame[offset] = x as u8; // R
-                frame[offset + 1] = y as u8; // G
-                frame[offset + 2] = 128; // B
-                frame[offset + 3] = 255; // A
+    let a = Vector2 { x: rf(), y: rf() };
+    let b = Vector2 { x: rf(), y: rf() };
+    let c = Vector2 { x: rf(), y: rf() };
+
+    let min_x = a.x.min(b.x).min(c.x);
+    let min_y = a.y.min(b.y).min(c.y);
+    let max_x = a.x.max(b.x).max(c.x);
+    let max_y = a.y.max(b.y).max(c.y);
+
+    let min_height = (min_y * (HEIGHT as f32)) as usize;
+    let min_width = (min_x * (WIDTH as f32)) as usize;
+    let max_height = (max_y * (HEIGHT as f32)).ceil() as usize;
+    let max_width = (max_x * (WIDTH as f32)).ceil() as usize;
+
+
+    for y in min_height..max_height {
+        for x in min_width..max_width {
+            let p = Vector2 {
+                x: x as f32 / WIDTH as f32,
+                y: y as f32 / HEIGHT as f32,
+            };
+            if vector::point_in_triangle(&a, &b, &c, &p) {
+                buffer[y * WIDTH + x] = color.clone();
             }
         }
-
-        self.pixels.render()?;
-        self.window.request_redraw();
-
-        Ok(())
     }
-
-    fn resize(&mut self, width: u32, height: u32) {
-        self.pixels.resize_surface(width, height);
-    }
+    buffer
 }
 
-struct App {
-    renderer: Option<Renderer>,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop).unwrap());
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
-    ) {
-        match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-
-            WindowEvent::RedrawRequested => {
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.render().unwrap();
-                }
-            }
-
-            WindowEvent::Resized(size) => {
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(size.width, size.height);
-                }
-            }
-
-            _ => (),
-        }
-    }
-}
-
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut app = App { renderer: None };
+    let w_settings = renderer::WindowSettings {
+        title: "Pixels Example".to_string(),
+        width: WIDTH as u32,
+        height: HEIGHT as u32,
+    };
+
+    // Use Arc<Mutex<...>> for shared mutable access
+    let pixels_buffer = Arc::new(Mutex::new(triangle_image()));
+
+    // Spawn a thread to update the image every second
+    {
+        let pixels_buffer = Arc::clone(&pixels_buffer);
+        thread::spawn(move || {
+            loop {
+                let new_image = triangle_image(); // Or any image generation logic
+                let mut buffer = pixels_buffer.lock().unwrap();
+                *buffer = new_image;
+                thread::sleep(Duration::from_secs(1));
+            }
+        });
+    }
+
+    let mut app = renderer::App::new(w_settings, pixels_buffer.clone());
     _ = event_loop.run_app(&mut app);
 
     Ok(())
