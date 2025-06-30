@@ -74,9 +74,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         thread::spawn(move || {
             loop {
                 let new_image = triangle_image(); // Or any image generation logic
-                let mut buffer = pixels_buffer.lock().unwrap();
-                *buffer = new_image;
-                thread::sleep(Duration::from_millis(100));
+                {
+                    let mut buffer = pixels_buffer.lock().unwrap();
+                    *buffer = new_image;
+                }
+                thread::sleep(Duration::from_millis(1000));
             }
         });
     }
