@@ -1,4 +1,4 @@
-use std::{error::Error, sync::{Arc, Mutex}, thread, time::Duration};
+use std::{error::Error, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use vector::Vector2;
@@ -11,6 +11,7 @@ const HEIGHT: usize = 64;
 
 
 fn triangle_image() -> Vec<renderer::RGBA> {
+    let start = Instant::now();
     let mut buffer = vec![renderer::RGBA { r: 0, g: 0, b: 0, a: 255 }; WIDTH * HEIGHT];
 
     let rf = { || rand::random_range(0f32..=1f32) };
@@ -25,10 +26,12 @@ fn triangle_image() -> Vec<renderer::RGBA> {
     let b = Vector2 { x: rf(), y: rf() };
     let c = Vector2 { x: rf(), y: rf() };
 
-    let min_x = a.x.min(b.x).min(c.x);
-    let min_y = a.y.min(b.y).min(c.y);
-    let max_x = a.x.max(b.x).max(c.x);
-    let max_y = a.y.max(b.y).max(c.y);
+    let triangle = vector::Triangle::new(a, b, c);
+
+    let min_x = triangle.a.x.min(triangle.b.x).min(triangle.c.x);
+    let min_y = triangle.a.y.min(triangle.b.y).min(triangle.c.y);
+    let max_x = triangle.a.x.max(triangle.b.x).max(triangle.c.x);
+    let max_y = triangle.a.y.max(triangle.b.y).max(triangle.c.y);
 
     let min_height = (min_y * (HEIGHT as f32)) as usize;
     let min_width = (min_x * (WIDTH as f32)) as usize;
@@ -42,11 +45,13 @@ fn triangle_image() -> Vec<renderer::RGBA> {
                 x: x as f32 / WIDTH as f32,
                 y: y as f32 / HEIGHT as f32,
             };
-            if vector::point_in_triangle(&a, &b, &c, &p) {
+            if triangle.point_in_triangle(&p) {
                 buffer[y * WIDTH + x] = color.clone();
             }
         }
     }
+    let end = start.elapsed();
+    println!("Triangle image generated in: {:.2?}", end);
     buffer
 }
 
@@ -71,7 +76,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let new_image = triangle_image(); // Or any image generation logic
                 let mut buffer = pixels_buffer.lock().unwrap();
                 *buffer = new_image;
-                thread::sleep(Duration::from_secs(1));
+                thread::sleep(Duration::from_millis(100));
             }
         });
     }
