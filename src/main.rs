@@ -1,4 +1,9 @@
-use std::{error::Error, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, Instant},
+};
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use vector::Vector2;
@@ -6,13 +11,20 @@ use vector::Vector2;
 pub mod renderer;
 pub mod vector;
 
-const WIDTH: usize = 128;
-const HEIGHT: usize = 64;
-
+const WIDTH: usize = 720;
+const HEIGHT: usize = 720;
 
 fn triangle_image() -> Vec<renderer::RGBA> {
     let start = Instant::now();
-    let mut buffer = vec![renderer::RGBA { r: 0, g: 0, b: 0, a: 255 }; WIDTH * HEIGHT];
+    let mut buffer = vec![
+        renderer::RGBA {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255
+        };
+        WIDTH * HEIGHT
+    ];
 
     let rf = { || rand::random_range(0f32..=1f32) };
     let color = renderer::RGBA {
@@ -38,7 +50,6 @@ fn triangle_image() -> Vec<renderer::RGBA> {
     let max_height = (max_y * (HEIGHT as f32)).ceil() as usize;
     let max_width = (max_x * (WIDTH as f32)).ceil() as usize;
 
-
     for y in min_height..max_height {
         for x in min_width..max_width {
             let p = Vector2 {
@@ -53,6 +64,13 @@ fn triangle_image() -> Vec<renderer::RGBA> {
     let end = start.elapsed();
     println!("Triangle image generated in: {:.2?}", end);
     buffer
+}
+
+impl renderer::PixelBuffer for Arc<Mutex<Vec<renderer::RGBA>>> {
+    fn get(&self) -> Vec<renderer::RGBA> {
+        let buffer = self.lock().unwrap();
+        buffer.clone()
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

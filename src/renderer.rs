@@ -1,4 +1,4 @@
-use std::{fmt, sync::{Arc, Mutex}};
+use std::{fmt, sync::Arc};
 
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
@@ -90,14 +90,18 @@ impl Renderer {
     }
 }
 
-pub struct App {
-    renderer: Option<Renderer>,
-    window_settings: WindowSettings,
-    pixels_buffer: Arc<Mutex<Vec<RGBA>>>,
+pub trait PixelBuffer: Send + Sync {
+    fn get(&self) -> Vec<RGBA>;
 }
 
-impl App {
-    pub fn new(window_settings: WindowSettings, pixels_buffer: Arc<Mutex<Vec<RGBA>>>) -> Self {
+pub struct App<B: PixelBuffer> {
+    renderer: Option<Renderer>,
+    window_settings: WindowSettings,
+    pixels_buffer: B,
+}
+
+impl<B: PixelBuffer> App<B> {
+    pub fn new(window_settings: WindowSettings, pixels_buffer: B) -> Self {
         Self {
             renderer: None,
             window_settings,
@@ -106,7 +110,7 @@ impl App {
     }
 }
 
-impl ApplicationHandler for App {
+impl<B: PixelBuffer> ApplicationHandler for App<B> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.renderer = Some(Renderer::new(event_loop, &self.window_settings).unwrap());
     }
@@ -124,7 +128,7 @@ impl ApplicationHandler for App {
                 if let Some(renderer) = &mut self.renderer {
                     renderer
                         .render(
-                            &self.pixels_buffer.lock().unwrap(),
+                            &self.pixels_buffer.get(),
                             self.window_settings.width,
                             self.window_settings.height,
                         )
