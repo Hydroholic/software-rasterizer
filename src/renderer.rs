@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 use pixels::{Pixels, SurfaceTexture};
 use winit::{
@@ -15,11 +15,31 @@ pub struct WindowSettings {
     pub height: u32,
 }
 
-struct RenderError(String);
+pub struct Image<'a> {
+    width: u32,
+    height: u32,
+    pixels: &'a Vec<RGBA>,
+}
 
-impl fmt::Debug for RenderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RenderError: {}", self.0)
+impl<'a> Image<'a> {
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn pixels(&self) -> &'a [RGBA] {
+        self.pixels
+    }
+
+    pub fn new(pixels: &'a Vec<RGBA>, width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            pixels,
+        }
     }
 }
 
@@ -37,10 +57,7 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(
-        event_loop: &ActiveEventLoop,
-        window_settings: &WindowSettings,
-    ) -> Result<Self, RenderError> {
+    fn new(event_loop: &ActiveEventLoop, window_settings: &WindowSettings) -> Self {
         let logical_size =
             LogicalSize::new(window_settings.width as f64, window_settings.height as f64);
 
@@ -58,12 +75,12 @@ impl Renderer {
             window_settings.height,
             surface_texture,
         )
-        .map_err(|err| RenderError(format!("Failed to create Pixels: {}", err)))?;
+        .expect("Failed to create Pixels instance");
 
-        Ok(Self { window, pixels })
+        Self { window, pixels }
     }
 
-    fn render(&mut self, pixels: &[RGBA], width: u32, height: u32) -> Result<(), RenderError> {
+    fn render(&mut self, pixels: &[RGBA], width: u32, height: u32) {
         let frame = self.pixels.frame_mut();
 
         for y in 0..height {
@@ -77,12 +94,8 @@ impl Renderer {
             }
         }
 
-        self.pixels
-            .render()
-            .map_err(|err| RenderError(format!("Failed to render pixels: {}", err)))?;
+        self.pixels.render().expect("Failed to render pixels");
         self.window.request_redraw();
-
-        Ok(())
     }
 
     fn resize(&mut self, width: u32, height: u32) {
@@ -90,29 +103,25 @@ impl Renderer {
     }
 }
 
-pub trait PixelBuffer: Send + Sync {
-    fn get(&self) -> Vec<RGBA>;
-}
-
-pub struct App<B: PixelBuffer> {
+pub struct App<'a> {
     renderer: Option<Renderer>,
     window_settings: WindowSettings,
-    pixels_buffer: B,
+    image: Image<'a>,
 }
 
-impl<B: PixelBuffer> App<B> {
-    pub fn new(window_settings: WindowSettings, pixels_buffer: B) -> Self {
+impl<'a> App<'a> {
+    pub fn new(window_settings: WindowSettings, image: Image<'a>) -> Self {
         Self {
             renderer: None,
             window_settings,
-            pixels_buffer,
+            image,
         }
     }
 }
 
-impl<B: PixelBuffer> ApplicationHandler for App<B> {
+impl<'a> ApplicationHandler for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop, &self.window_settings).unwrap());
+        self.renderer = Some(Renderer::new(event_loop, &self.window_settings));
     }
 
     fn window_event(
@@ -126,13 +135,12 @@ impl<B: PixelBuffer> ApplicationHandler for App<B> {
 
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
-                    renderer
-                        .render(
-                            &self.pixels_buffer.get(),
-                            self.window_settings.width,
-                            self.window_settings.height,
-                        )
-                        .unwrap();
+                    let pixels = self.image.pixels;
+                    renderer.render(
+                        pixels,
+                        self.window_settings.width,
+                        self.window_settings.height,
+                    );
                 }
             }
 

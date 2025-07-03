@@ -1,4 +1,9 @@
-#[derive(Debug)]
+use crate::{
+    HEIGHT, WIDTH,
+    renderer::{self, RGBA},
+};
+
+#[derive(Debug, Clone)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -12,7 +17,7 @@ pub struct Vector2 {
 }
 
 #[derive(Debug)]
-pub struct Triangle {
+pub struct Triangle2 {
     pub a: Vector2,
     pub b: Vector2,
     pub c: Vector2,
@@ -21,7 +26,7 @@ pub struct Triangle {
     perpendicular_ca: Vector2,
 }
 
-impl Triangle {
+impl Triangle2 {
     pub fn new(a: Vector2, b: Vector2, c: Vector2) -> Self {
         let ab = substract2(&b, &a);
         let bc = substract2(&c, &b);
@@ -64,5 +69,61 @@ pub fn substract2(a: &Vector2, b: &Vector2) -> Vector2 {
     Vector2 {
         x: a.x - b.x,
         y: a.y - b.y,
+    }
+}
+
+pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: renderer::RGBA) {
+    let min_x = triangle.a.x.min(triangle.b.x).min(triangle.c.x);
+    let min_y = triangle.a.y.min(triangle.b.y).min(triangle.c.y);
+    let max_x = triangle.a.x.max(triangle.b.x).max(triangle.c.x);
+    let max_y = triangle.a.y.max(triangle.b.y).max(triangle.c.y);
+
+    let min_height = (min_y * (HEIGHT as f32)) as usize;
+    let min_width = (min_x * (WIDTH as f32)) as usize;
+    let max_height = (max_y * (HEIGHT as f32)).ceil() as usize;
+    let max_width = (max_x * (WIDTH as f32)).ceil() as usize;
+
+    for y in min_height..max_height {
+        for x in min_width..max_width {
+            let p = Vector2 {
+                x: x as f32 / WIDTH as f32,
+                y: y as f32 / HEIGHT as f32,
+            };
+            if triangle.point_in_triangle(&p) {
+                buffer[y * WIDTH + x] = color.clone();
+            }
+        }
+    }
+}
+
+pub fn draw_triangles(pixels_buffer: &mut [RGBA], points: Vec<Vector3>) {
+    for i in (0..points.len()).step_by(3) {
+        if i + 2 >= points.len() {
+            panic!("Not enough points to form a triangle");
+        }
+        let a = Vector2 {
+            x: (points[i].x + 1.0) / 2.0,
+            y: (points[i].y + 1.0) / 2.0,
+        };
+        let b = Vector2 {
+            x: (points[i + 1].x + 1.0) / 2.0,
+            y: (points[i + 1].y + 1.0) / 2.0,
+        };
+        let c = Vector2 {
+            x: (points[i + 2].x + 1.0) / 2.0,
+            y: (points[i + 2].y + 1.0) / 2.0,
+        };
+        let triangle = Triangle2::new(a, b, c);
+        let color = renderer::RGBA {
+            r: rand::random(),
+            g: rand::random(),
+            b: rand::random(),
+            a: 255,
+        };
+        println!(
+            "Drawing triangle with points: {:?}, {:?}, {:?}",
+            triangle.a, triangle.b, triangle.c
+        );
+        fill_triangle_buffer(pixels_buffer, &triangle, color);
     }
 }
