@@ -78,21 +78,34 @@ pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: re
     let max_x = triangle.a.x.max(triangle.b.x).max(triangle.c.x);
     let max_y = triangle.a.y.max(triangle.b.y).max(triangle.c.y);
 
-    let min_height = (min_y * (HEIGHT as f32)) as usize;
-    let min_width = (min_x * (WIDTH as f32)) as usize;
-    let max_height = (max_y * (HEIGHT as f32)).ceil() as usize;
-    let max_width = (max_x * (WIDTH as f32)).ceil() as usize;
+    let min_height = min_y as usize;
+    let min_width = min_x as usize;
+    let max_height = max_y.ceil() as usize;
+    let max_width = max_x.ceil() as usize;
 
     for y in min_height..max_height {
         for x in min_width..max_width {
             let p = Vector2 {
-                x: x as f32 / WIDTH as f32,
-                y: y as f32 / HEIGHT as f32,
+                x: x as f32,
+                y: y as f32,
             };
             if triangle.point_in_triangle(&p) {
-                buffer[y * WIDTH + x] = color.clone();
+                let index = y * WIDTH + x;
+                buffer[index] = color.clone();
             }
         }
+    }
+}
+
+
+fn world_to_screen(point: &Vector3) -> Vector2 {
+    let world_height = HEIGHT as f32/ 5.0;
+    let offset = Vector2 {
+        x: point.x * world_height, y: point.y * world_height,
+    };
+    Vector2 {
+        x: HEIGHT as f32 / 2.0 + offset.x,
+        y: HEIGHT as f32 / 2.0 - offset.y,
     }
 }
 
@@ -101,18 +114,9 @@ pub fn draw_triangles(pixels_buffer: &mut [RGBA], points: Vec<Vector3>) {
         if i + 2 >= points.len() {
             panic!("Not enough points to form a triangle");
         }
-        let a = Vector2 {
-            x: (points[i].x + 1.0) / 2.0,
-            y: (points[i].y + 1.0) / 2.0,
-        };
-        let b = Vector2 {
-            x: (points[i + 1].x + 1.0) / 2.0,
-            y: (points[i + 1].y + 1.0) / 2.0,
-        };
-        let c = Vector2 {
-            x: (points[i + 2].x + 1.0) / 2.0,
-            y: (points[i + 2].y + 1.0) / 2.0,
-        };
+        let a = world_to_screen(&points[i]);
+        let b = world_to_screen(&points[i + 1]);
+        let c = world_to_screen(&points[i + 2]);
         let triangle = Triangle2::new(a, b, c);
         let color = renderer::RGBA {
             r: rand::random(),

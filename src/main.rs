@@ -12,7 +12,6 @@ const WIDTH: usize = 720;
 const HEIGHT: usize = 720;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // buffer filled with black
     let obj_data = include_str!("../resources/materials/cube.obj");
     let parsed_data = parse_obj(obj_data);
     let mut pixels = vec![
