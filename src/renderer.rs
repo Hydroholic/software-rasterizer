@@ -15,32 +15,11 @@ pub struct WindowSettings {
     pub height: u32,
 }
 
-pub struct Image<'a> {
-    width: u32,
-    height: u32,
-    pixels: &'a Vec<RGBA>,
-}
-
-impl<'a> Image<'a> {
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
-    pub fn pixels(&self) -> &'a [RGBA] {
-        self.pixels
-    }
-
-    pub fn new(pixels: &'a Vec<RGBA>, width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            pixels,
-        }
-    }
+// Trait to abstract pixel access, so mutex is not exposed
+pub trait PixelProvider {
+    fn get_pixels(&self) -> Vec<RGBA>;
+    fn width(&self) -> u32;
+    fn height(&self) -> u32;
 }
 
 #[derive(Clone)]
@@ -57,7 +36,7 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(event_loop: &ActiveEventLoop, image: &Image) -> Self {
+    fn new(event_loop: &ActiveEventLoop, image: &impl PixelProvider) -> Self {
         let logical_size =
             LogicalSize::new(image.width() as f64, image.height() as f64);
 
@@ -103,13 +82,13 @@ impl Renderer {
     }
 }
 
-pub struct App<'a> {
+pub struct App<'a, P: PixelProvider> {
     renderer: Option<Renderer>,
-    image: Image<'a>,
+    image: &'a P,
 }
 
-impl<'a> App<'a> {
-    pub fn new(image: Image<'a>) -> Self {
+impl<'a, P: PixelProvider> App<'a, P> {
+    pub fn new(image: &'a P) -> Self {
         Self {
             renderer: None,
             image,
@@ -117,9 +96,9 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> ApplicationHandler for App<'a> {
+impl<'a, P: PixelProvider> ApplicationHandler for App<'a, P> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop, &self.image));
+        self.renderer = Some(Renderer::new(event_loop, self.image));
     }
 
     fn window_event(
@@ -133,9 +112,9 @@ impl<'a> ApplicationHandler for App<'a> {
 
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = &mut self.renderer {
-                    let pixels = self.image.pixels;
+                    let pixels = self.image.get_pixels();
                     renderer.render(
-                        pixels,
+                        &pixels,
                         self.image.width(),
                         self.image.height(),
                     );

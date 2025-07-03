@@ -109,7 +109,7 @@ fn world_to_screen(point: &Vector3) -> Vector2 {
     }
 }
 
-pub fn draw_triangles(pixels_buffer: &mut [RGBA], points: Vec<Vector3>) {
+pub fn draw_triangles(pixels_buffer: &mut [RGBA], points: &[Vector3]) {
     for i in (0..points.len()).step_by(3) {
         if i + 2 >= points.len() {
             panic!("Not enough points to form a triangle");
