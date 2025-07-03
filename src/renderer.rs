@@ -57,12 +57,12 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(event_loop: &ActiveEventLoop, window_settings: &WindowSettings) -> Self {
+    fn new(event_loop: &ActiveEventLoop, image: &Image) -> Self {
         let logical_size =
-            LogicalSize::new(window_settings.width as f64, window_settings.height as f64);
+            LogicalSize::new(image.width() as f64, image.height() as f64);
 
         let window_attributes = WindowAttributes::default()
-            .with_title(window_settings.title.clone())
+            .with_title("Pixels Example".to_string())
             .with_inner_size(logical_size)
             .with_min_inner_size(logical_size);
 
@@ -71,8 +71,8 @@ impl Renderer {
         let surface_texture =
             SurfaceTexture::new(window_size.width, window_size.height, window.clone());
         let pixels = Pixels::new(
-            window_settings.width,
-            window_settings.height,
+            image.width(),
+            image.height(),
             surface_texture,
         )
         .expect("Failed to create Pixels instance");
@@ -105,15 +105,13 @@ impl Renderer {
 
 pub struct App<'a> {
     renderer: Option<Renderer>,
-    window_settings: WindowSettings,
     image: Image<'a>,
 }
 
 impl<'a> App<'a> {
-    pub fn new(window_settings: WindowSettings, image: Image<'a>) -> Self {
+    pub fn new(image: Image<'a>) -> Self {
         Self {
             renderer: None,
-            window_settings,
             image,
         }
     }
@@ -121,7 +119,7 @@ impl<'a> App<'a> {
 
 impl<'a> ApplicationHandler for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.renderer = Some(Renderer::new(event_loop, &self.window_settings));
+        self.renderer = Some(Renderer::new(event_loop, &self.image));
     }
 
     fn window_event(
@@ -138,8 +136,8 @@ impl<'a> ApplicationHandler for App<'a> {
                     let pixels = self.image.pixels;
                     renderer.render(
                         pixels,
-                        self.window_settings.width,
-                        self.window_settings.height,
+                        self.image.width(),
+                        self.image.height(),
                     );
                 }
             }

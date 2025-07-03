@@ -29,13 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let w_settings = renderer::WindowSettings {
-        title: "Pixels Example".to_string(),
-        width: WIDTH as u32,
-        height: HEIGHT as u32,
-    };
-
-    let mut app = renderer::App::new(w_settings, image);
+    let mut app = renderer::App::new(image);
     _ = event_loop.run_app(&mut app);
 
     Ok(())
