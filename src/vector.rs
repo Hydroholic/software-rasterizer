@@ -1,6 +1,5 @@
 use crate::{
-    HEIGHT, WIDTH,
-    renderer::{self, RGBA},
+    renderer::{self, RGBA}, ColoredTriangle, HEIGHT, WIDTH
 };
 
 #[derive(Debug, Clone)]
@@ -8,6 +7,16 @@ pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+}
+
+impl Vector3 {
+    pub fn mult(&self, x: f32) -> Self {
+        Self {
+            x: self.x * x,
+            y: self.y * x,
+            z: self.z * x,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -57,6 +66,12 @@ impl Triangle2 {
     }
 }
 
+pub struct Triangle3 {
+    pub a: Vector3,
+    pub b: Vector3,
+    pub c: Vector3,
+}
+
 pub fn dot2(a: &Vector2, b: &Vector2) -> f32 {
     a.x * b.x + a.y * b.y
 }
@@ -70,6 +85,26 @@ pub fn substract2(a: &Vector2, b: &Vector2) -> Vector2 {
         x: a.x - b.x,
         y: a.y - b.y,
     }
+}
+
+pub fn add3(a: &Vector3, b: &Vector3) -> Vector3 {
+    Vector3 {
+        x: a.x + b.x,
+        y: a.y + b.y,
+        z: a.z + b.z,
+    }
+}
+
+pub fn transform3(i: &Vector3, j: &Vector3, k: &Vector3, v: &Vector3) -> Vector3 {
+    let add_ij= add3(&i.mult(v.x), &j.mult(v.y));
+    add3(&add_ij, &k.mult(v.z))
+}
+
+pub fn get_quaternion(yaw: f32) -> (Vector3, Vector3, Vector3) {
+    let i = Vector3 {x: yaw.cos(), y: 0.0, z: yaw.sin()};
+    let j = Vector3 {x: 0.0, y: 1.0, z: 0.0};
+    let k = Vector3 {x: -yaw.sin(), y: 0.0, z: yaw.cos()};
+    (i, j, k)
 }
 
 pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: renderer::RGBA) {
@@ -109,25 +144,16 @@ fn world_to_screen(point: &Vector3) -> Vector2 {
     }
 }
 
-pub fn draw_triangles(pixels_buffer: &mut [RGBA], points: &[Vector3]) {
-    for i in (0..points.len()).step_by(3) {
-        if i + 2 >= points.len() {
-            panic!("Not enough points to form a triangle");
-        }
-        let a = world_to_screen(&points[i]);
-        let b = world_to_screen(&points[i + 1]);
-        let c = world_to_screen(&points[i + 2]);
+pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle]) {
+    for i in triangles {
+        let a = world_to_screen(&i.triangle.a);
+        let b = world_to_screen(&i.triangle.b);
+        let c = world_to_screen(&i.triangle.c);
         let triangle = Triangle2::new(a, b, c);
-        let color = renderer::RGBA {
-            r: rand::random(),
-            g: rand::random(),
-            b: rand::random(),
-            a: 255,
-        };
         println!(
             "Drawing triangle with points: {:?}, {:?}, {:?}",
             triangle.a, triangle.b, triangle.c
         );
-        fill_triangle_buffer(pixels_buffer, &triangle, color);
+        fill_triangle_buffer(pixels_buffer, &triangle, i.color.clone());
     }
 }

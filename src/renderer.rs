@@ -15,7 +15,6 @@ pub struct WindowSettings {
     pub height: u32,
 }
 
-// Trait to abstract pixel access, so mutex is not exposed
 pub trait PixelProvider {
     fn get_pixels(&self) -> Vec<RGBA>;
     fn width(&self) -> u32;

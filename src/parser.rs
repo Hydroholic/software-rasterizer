@@ -1,6 +1,6 @@
-use crate::vector::Vector3;
+use crate::vector::{self, Vector3};
 
-pub fn parse_obj(obj_data: &str) -> Vec<Vector3> {
+pub fn parse_obj(obj_data: &str) -> Vec<vector::Triangle3> {
     let mut vertices = Vec::new();
     let mut triangle_points = Vec::new();
 
@@ -19,11 +19,17 @@ pub fn parse_obj(obj_data: &str) -> Vec<Vector3> {
         } else if let Some(prefix) = line.strip_prefix("f ") {
             let parts: Vec<&str> = prefix.split_whitespace().collect();
             if parts.len() == 3 {
+                let mut indices = Vec::new();
                 for part in parts.iter() {
-                    let indices: Vec<&str> = part.split('/').collect();
-                    let point_index = indices[0].parse::<usize>().unwrap() - 1;
-                    triangle_points.push(vertices[point_index].clone());
+                    let idx: usize = part.split('/').next().unwrap().parse::<usize>().unwrap() - 1;
+                    indices.push(idx);
                 }
+                let triangle = vector::Triangle3 {
+                    a: vertices[indices[0]].clone(),
+                    b: vertices[indices[1]].clone(),
+                    c: vertices[indices[2]].clone(),
+                };
+                triangle_points.push(triangle);
             }
         }
     }
