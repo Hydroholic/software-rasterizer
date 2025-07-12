@@ -62,7 +62,7 @@ impl Triangle2 {
         let dot_bcp = dot2(&self.perpendicular_bc, &bp) >= 0.0;
         let dot_cap = dot2(&self.perpendicular_ca, &cp) >= 0.0;
 
-        (dot_cap == dot_bcp) && (dot_bcp == dot_abp)
+        dot_cap && dot_bcp && dot_abp
     }
 }
 
