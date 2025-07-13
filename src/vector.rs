@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use crate::{
     renderer::{self, RGBA}, ColoredTriangle, HEIGHT, WIDTH
 };
@@ -10,19 +12,72 @@ pub struct Vector3 {
 }
 
 impl Vector3 {
-    pub fn mult(&self, x: f32) -> Self {
-        Self {
-            x: self.x * x,
-            y: self.y * x,
-            z: self.z * x,
+    pub fn transform(&self, i: &Vector3, j: &Vector3, k: &Vector3) -> Vector3 {
+        i.clone() * self.x + j.clone() * self.y + k.clone() * self.z
+    }
+}
+
+impl std::ops::Mul<f32> for Vector3 {
+    type Output = Vector3;
+
+    fn mul(self, other: f32) -> Self::Output {
+        Vector3 {
+            x: self.x * other,
+            y: self.y * other,
+            z: self.z * other,
         }
     }
 }
 
-#[derive(Debug)]
+impl std::ops::Add for Vector3 {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Vector3 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Vector2 {
     pub x: f32,
     pub y: f32,
+}
+
+impl Vector2 {
+    pub fn dot(&self, b: &Vector2) -> f32 {
+        self.x * b.x + self.y * b.y
+    }
+
+    pub fn perpendicular_clockwise(&self) -> Vector2 {
+        Vector2 { x: self.y, y: -self.x }
+    }
+}
+
+
+impl std::ops::Add for Vector2 {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Vector2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl std::ops::Sub<&Vector2> for &Vector2 {
+    type Output = Vector2;
+
+    fn sub(self, other: &Vector2) -> Self::Output {
+        Vector2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -37,12 +92,12 @@ pub struct Triangle2 {
 
 impl Triangle2 {
     pub fn new(a: Vector2, b: Vector2, c: Vector2) -> Self {
-        let ab = substract2(&b, &a);
-        let bc = substract2(&c, &b);
-        let ca = substract2(&a, &c);
-        let perpendicular_ab = perpendicular2_clockwise(&ab);
-        let perpendicular_bc = perpendicular2_clockwise(&bc);
-        let perpendicular_ca = perpendicular2_clockwise(&ca);
+        let ab = &b - &a;
+        let bc = &c - &b;
+        let ca = &a - &c;
+        let perpendicular_ab = ab.perpendicular_clockwise();
+        let perpendicular_bc = bc.perpendicular_clockwise();
+        let perpendicular_ca = ca.perpendicular_clockwise();
 
         Self {
             a,
@@ -55,55 +110,72 @@ impl Triangle2 {
     }
 
     pub fn point_in_triangle(&self, p: &Vector2) -> bool {
-        let ap = substract2(p, &self.a);
-        let bp = substract2(p, &self.b);
-        let cp = substract2(p, &self.c);
-        let dot_abp = dot2(&self.perpendicular_ab, &ap) >= 0.0;
-        let dot_bcp = dot2(&self.perpendicular_bc, &bp) >= 0.0;
-        let dot_cap = dot2(&self.perpendicular_ca, &cp) >= 0.0;
+        let ap = p - &self.a;
+        let bp = p - &self.b;
+        let cp = p - &self.c;
+        let dot_abp = self.perpendicular_ab.dot(&ap) >= 0.0;
+        let dot_bcp = self.perpendicular_bc.dot(&bp) >= 0.0;
+        let dot_cap = self.perpendicular_ca.dot(&cp) >= 0.0;
 
         dot_cap && dot_bcp && dot_abp
     }
 }
 
+#[derive(Clone)]
 pub struct Triangle3 {
     pub a: Vector3,
     pub b: Vector3,
     pub c: Vector3,
 }
 
-pub fn dot2(a: &Vector2, b: &Vector2) -> f32 {
-    a.x * b.x + a.y * b.y
+pub struct Transform {
+    pub position: Vector3,
+    pub direction: Vector3,
 }
 
-pub fn perpendicular2_clockwise(a: &Vector2) -> Vector2 {
-    Vector2 { x: a.y, y: -a.x }
-}
+pub struct Model(pub Vec<ColoredTriangle>);
 
-pub fn substract2(a: &Vector2, b: &Vector2) -> Vector2 {
-    Vector2 {
-        x: a.x - b.x,
-        y: a.y - b.y,
+impl Model {
+    pub fn apply_transform(&mut self, transform: &Transform) {
+        let apply_position = {
+            let position = &transform.position;
+            move |triangle: &mut ColoredTriangle| {
+                triangle.triangle.a = triangle.triangle.a.clone() + position.clone();
+                triangle.triangle.b = triangle.triangle.b.clone() + position.clone();
+                triangle.triangle.c = triangle.triangle.c.clone() + position.clone();
+            }
+        };
+
+        let apply_direction = {
+            let direction = &transform.direction;
+            move |triangle: &mut ColoredTriangle| {
+                let (i, j, k) = get_quaternion(direction.x, direction.y);
+                triangle.triangle.a = triangle.triangle.a.transform(&i, &j, &k);
+                triangle.triangle.b = triangle.triangle.b.transform(&i, &j, &k);
+                triangle.triangle.c = triangle.triangle.c.transform(&i, &j, &k);
+            }
+        };
+
+        self.0.iter_mut().for_each(|t| {
+            apply_direction(t);
+            apply_position(t);
+        })
     }
 }
 
-pub fn add3(a: &Vector3, b: &Vector3) -> Vector3 {
-    Vector3 {
-        x: a.x + b.x,
-        y: a.y + b.y,
-        z: a.z + b.z,
-    }
-}
+pub fn get_quaternion(yaw: f32, pitch: f32) -> (Vector3, Vector3, Vector3) {
+    let i_yaw = Vector3 {x: yaw.cos(), y: 0.0, z: yaw.sin()};
+    let j_yaw = Vector3 {x: 0.0, y: 1.0, z: 0.0};
+    let k_yaw = Vector3 {x: -yaw.sin(), y: 0.0, z: yaw.cos()};
 
-pub fn transform3(i: &Vector3, j: &Vector3, k: &Vector3, v: &Vector3) -> Vector3 {
-    let add_ij= add3(&i.mult(v.x), &j.mult(v.y));
-    add3(&add_ij, &k.mult(v.z))
-}
+    let i_pitch = Vector3 {x: 1.0, y: 0.0, z: 0.0};
+    let j_pitch = Vector3 {x: 0.0, y: pitch.cos(), z: -pitch.sin()};
+    let k_pitch = Vector3 {x: 0.0, y: pitch.sin(), z: pitch.cos()};
 
-pub fn get_quaternion(yaw: f32) -> (Vector3, Vector3, Vector3) {
-    let i = Vector3 {x: yaw.cos(), y: 0.0, z: yaw.sin()};
-    let j = Vector3 {x: 0.0, y: 1.0, z: 0.0};
-    let k = Vector3 {x: -yaw.sin(), y: 0.0, z: yaw.cos()};
+    let i = i_pitch.transform(&i_yaw, &j_yaw, &k_yaw);
+    let j = j_pitch.transform(&i_yaw, &j_yaw, &k_yaw);
+    let k = k_pitch.transform(&i_yaw, &j_yaw, &k_yaw);
+
     (i, j, k)
 }
 
@@ -118,8 +190,8 @@ pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: re
     let max_height = max_y.ceil() as usize;
     let max_width = max_x.ceil() as usize;
 
-    for y in min_height..max_height {
-        for x in min_width..max_width {
+    for y in min_height.max(0)..max_height.min(HEIGHT) {
+        for x in min_width.max(0)..max_width.min(WIDTH) {
             let p = Vector2 {
                 x: x as f32,
                 y: y as f32,
@@ -133,10 +205,19 @@ pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: re
 }
 
 
-fn world_to_screen(point: &Vector3) -> Vector2 {
-    let world_height = HEIGHT as f32/ 5.0;
+fn world_to_screen(point: &Vector3, fov: f32) -> Vector2 {
+    if fov <= 0.0 {
+        panic!("FOV must be greater than 0");
+    }
+    // TODO: Below should not be computed for every point
+    let randiant_fov = fov * PI / 180.0;
+    let world_unit = f32::tan(randiant_fov / 2.0) * 2.0;
+    let mut pixels_per_world_unit = HEIGHT as f32 / world_unit;
+    if point.z < 0.0 {
+        pixels_per_world_unit /= point.z;
+    }
     let offset = Vector2 {
-        x: point.x * world_height, y: point.y * world_height,
+        x: point.x * pixels_per_world_unit, y: point.y * pixels_per_world_unit,
     };
     Vector2 {
         x: HEIGHT as f32 / 2.0 + offset.x,
@@ -144,16 +225,16 @@ fn world_to_screen(point: &Vector3) -> Vector2 {
     }
 }
 
-pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle]) {
+pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle], fov: f32) {
     for i in triangles {
-        let a = world_to_screen(&i.triangle.a);
-        let b = world_to_screen(&i.triangle.b);
-        let c = world_to_screen(&i.triangle.c);
+        // Skip triangles that are behind the camera
+        if (i.triangle.a.z >= 0.0) || (i.triangle.b.z >= 0.0) || (i.triangle.c.z >= 0.0) {
+            continue;
+        }
+        let a = world_to_screen(&i.triangle.a, fov);
+        let b = world_to_screen(&i.triangle.b, fov);
+        let c = world_to_screen(&i.triangle.c, fov);
         let triangle = Triangle2::new(a, b, c);
-        println!(
-            "Drawing triangle with points: {:?}, {:?}, {:?}",
-            triangle.a, triangle.b, triangle.c
-        );
         fill_triangle_buffer(pixels_buffer, &triangle, i.color.clone());
     }
 }

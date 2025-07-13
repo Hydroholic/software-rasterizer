@@ -6,29 +6,20 @@ use std::error::Error;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use parser::parse_obj;
-use vector::{draw_triangles, get_quaternion, transform3, Triangle3, Vector3};
+use vector::{draw_triangles, Vector3};
 
 pub mod parser;
 pub mod renderer;
 pub mod vector;
 
+// TODO: Don't use globals
 const WIDTH: usize = 720;
 const HEIGHT: usize = 720;
 
+#[derive(Clone)]
 pub struct ColoredTriangle {
     pub triangle: vector::Triangle3,
     pub color: renderer::RGBA,
-}
-
-fn transform_colored_triangle(q0: &Vector3, q1: &Vector3, q2: &Vector3, t: &ColoredTriangle) -> ColoredTriangle {
-    ColoredTriangle {
-        triangle: Triangle3 {
-            a: transform3(q0, q1, q2, &t.triangle.a),
-            b: transform3(q0, q1, q2, &t.triangle.b),
-            c: transform3(q0, q1, q2, &t.triangle.c),
-        },
-        color: t.color.clone(),
-    }
 }
 
 
@@ -64,20 +55,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     let colored_triangles_clone = Arc::clone(&colored_triangles);
 
     thread::spawn(move || {
-        let mut yaw = 0.0;
+        let mut transform = vector::Transform {
+            position: Vector3 { x: 0.1, y: 0.1, z: -5.0 },
+            direction: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+        };
+        let fov = 60.0;
         loop {
             {
+                let start = std::time::Instant::now();
                 let mut pixels = pixels_clone.lock().unwrap();
-                let q = get_quaternion(yaw);
-                let transformed_triangles = colored_triangles_clone
-                    .iter()
-                    .map(
-                        |t| transform_colored_triangle(&q.0, &q.1, &q.2, t)
-                    ).collect::<Vec<_>>();
-                draw_triangles(&mut pixels, &transformed_triangles);
+                pixels.fill(renderer::RGBA {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                });
+                let mut model = vector::Model((*colored_triangles_clone).clone());
+                model.apply_transform(&transform);
+                let draw_start = std::time::Instant::now();
+                draw_triangles(&mut pixels, &model.0, fov);
+                let draw_time = draw_start.elapsed();
+                let elapsed = start.elapsed();
+                print!("Frame rendered in: {:.2?} ({:.2?} drawing)", elapsed, draw_time);
+                println!();
             }
-            yaw += 0.1;
-            thread::sleep(Duration::from_millis(100));
+            transform.direction.x += 0.02;
+            transform.direction.y += 0.01;
+            thread::sleep(Duration::from_millis(10));
         }
     });
 
