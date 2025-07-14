@@ -6,7 +6,7 @@ use std::error::Error;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use parser::parse_obj;
-use vector::{draw_triangles, Vector3};
+use vector::{draw_triangles, Model, Vector3};
 
 pub mod parser;
 pub mod renderer;
@@ -22,42 +22,61 @@ pub struct ColoredTriangle {
     pub color: renderer::RGBA,
 }
 
+fn random_color() -> renderer::RGBA {
+    renderer::RGBA {
+        r: rand::random(),
+        g: rand::random(),
+        b: rand::random(),
+        a: 255,
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let obj_data = include_str!("../resources/materials/monkey.obj");
-    let parsed_data = parse_obj(obj_data);
+    let monkey_file = include_str!("../resources/materials/monkey.obj");
+    let cube_file = include_str!("../resources/materials/cube.obj");
+    let monkey_triangles = parse_obj(monkey_file);
+    let cube_triangles = parse_obj(cube_file);
 
     let pixels = Arc::new(Mutex::new(vec![
         renderer::RGBA {
             r: 0,
             g: 0,
             b: 0,
-            a: 255,
+            a: 255
         };
         WIDTH * HEIGHT
     ]));
 
-    let colored_triangles = parsed_data
+    let mut monkey_model: Model = monkey_triangles
         .into_iter()
         .map(|t| ColoredTriangle {
             triangle: t,
-            color: renderer::RGBA {
-                r: rand::random(),
-                g: rand::random(),
-                b: rand::random(),
-                a: 255,
-            },
+            color: random_color(),
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<_>>().into();
 
-    let colored_triangles = Arc::new(colored_triangles);
+    let mut cube_model: Model = cube_triangles
+        .into_iter()
+        .map(|t| ColoredTriangle {
+            triangle: t,
+            color: random_color(),
+        })
+        .collect::<Vec<_>>().into();
+
     let pixels_clone = Arc::clone(&pixels);
-    let colored_triangles_clone = Arc::clone(&colored_triangles);
 
     thread::spawn(move || {
         let mut transform = vector::Transform {
-            position: Vector3 { x: 0.1, y: 0.1, z: -5.0 },
-            direction: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+            position: Vector3 {
+                x: 0.1,
+                y: 0.1,
+                z: -5.0,
+            },
+            direction: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
         };
         let fov = 60.0;
         loop {
@@ -71,18 +90,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                     a: 255,
                 });
 
-                let mut model = vector::Model((*colored_triangles_clone).clone());
 
                 let transform_start = std::time::Instant::now();
-                model.apply_transform(&transform);
+                monkey_model.apply_transform(&transform);
                 let transform_time = transform_start.elapsed();
 
                 let draw_start = std::time::Instant::now();
-                draw_triangles(&mut pixels, &model.0, fov);
+                draw_triangles(&mut pixels, &monkey_model.triangles, fov);
                 let draw_time = draw_start.elapsed();
 
                 let elapsed = start.elapsed();
-                print!("Frame rendered in: {:.2?} ({:.2?} drawing, {:.2?} transforming)", elapsed, draw_time, transform_time);
+                print!(
+                    "Frame rendered in: {:.2?} ({:.2?} drawing, {:.2?} transforming)",
+                    elapsed, draw_time, transform_time
+                );
                 println!();
             }
             transform.direction.x += 0.02;

@@ -21,7 +21,7 @@ pub trait PixelProvider {
     fn height(&self) -> u32;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct RGBA {
     pub r: u8,
     pub g: u8,
