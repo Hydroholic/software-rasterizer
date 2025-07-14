@@ -24,7 +24,7 @@ pub struct ColoredTriangle {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let obj_data = include_str!("../resources/materials/cube.obj");
+    let obj_data = include_str!("../resources/materials/monkey.obj");
     let parsed_data = parse_obj(obj_data);
 
     let pixels = Arc::new(Mutex::new(vec![
