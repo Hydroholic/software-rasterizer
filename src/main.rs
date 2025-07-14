@@ -70,13 +70,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                     b: 0,
                     a: 255,
                 });
+
                 let mut model = vector::Model((*colored_triangles_clone).clone());
+
+                let transform_start = std::time::Instant::now();
                 model.apply_transform(&transform);
+                let transform_time = transform_start.elapsed();
+
                 let draw_start = std::time::Instant::now();
                 draw_triangles(&mut pixels, &model.0, fov);
                 let draw_time = draw_start.elapsed();
+
                 let elapsed = start.elapsed();
-                print!("Frame rendered in: {:.2?} ({:.2?} drawing)", elapsed, draw_time);
+                print!("Frame rendered in: {:.2?} ({:.2?} drawing, {:.2?} transforming)", elapsed, draw_time, transform_time);
                 println!();
             }
             transform.direction.x += 0.02;

@@ -1,8 +1,6 @@
 use std::f32::consts::PI;
 
-use crate::{
-    renderer::{self, RGBA}, ColoredTriangle, HEIGHT, WIDTH
-};
+use crate::{ColoredTriangle, HEIGHT, WIDTH, renderer::RGBA};
 
 #[derive(Debug, Clone)]
 pub struct Vector3 {
@@ -43,20 +41,22 @@ impl std::ops::Add for Vector3 {
 
 #[derive(Debug, Clone)]
 pub struct Vector2 {
-    pub x: f32,
-    pub y: f32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Vector2 {
-    pub fn dot(&self, b: &Vector2) -> f32 {
+    pub fn dot(&self, b: &Vector2) -> i32 {
         self.x * b.x + self.y * b.y
     }
 
     pub fn perpendicular_clockwise(&self) -> Vector2 {
-        Vector2 { x: self.y, y: -self.x }
+        Vector2 {
+            x: self.y,
+            y: -self.x,
+        }
     }
 }
-
 
 impl std::ops::Add for Vector2 {
     type Output = Self;
@@ -80,47 +80,6 @@ impl std::ops::Sub<&Vector2> for &Vector2 {
     }
 }
 
-#[derive(Debug)]
-pub struct Triangle2 {
-    pub a: Vector2,
-    pub b: Vector2,
-    pub c: Vector2,
-    perpendicular_ab: Vector2,
-    perpendicular_bc: Vector2,
-    perpendicular_ca: Vector2,
-}
-
-impl Triangle2 {
-    pub fn new(a: Vector2, b: Vector2, c: Vector2) -> Self {
-        let ab = &b - &a;
-        let bc = &c - &b;
-        let ca = &a - &c;
-        let perpendicular_ab = ab.perpendicular_clockwise();
-        let perpendicular_bc = bc.perpendicular_clockwise();
-        let perpendicular_ca = ca.perpendicular_clockwise();
-
-        Self {
-            a,
-            b,
-            c,
-            perpendicular_ab,
-            perpendicular_bc,
-            perpendicular_ca,
-        }
-    }
-
-    pub fn point_in_triangle(&self, p: &Vector2) -> bool {
-        let ap = p - &self.a;
-        let bp = p - &self.b;
-        let cp = p - &self.c;
-        let dot_abp = self.perpendicular_ab.dot(&ap) >= 0.0;
-        let dot_bcp = self.perpendicular_bc.dot(&bp) >= 0.0;
-        let dot_cap = self.perpendicular_ca.dot(&cp) >= 0.0;
-
-        dot_cap && dot_bcp && dot_abp
-    }
-}
-
 #[derive(Clone)]
 pub struct Triangle3 {
     pub a: Vector3,
@@ -137,40 +96,49 @@ pub struct Model(pub Vec<ColoredTriangle>);
 
 impl Model {
     pub fn apply_transform(&mut self, transform: &Transform) {
-        let apply_position = {
-            let position = &transform.position;
-            move |triangle: &mut ColoredTriangle| {
-                triangle.triangle.a = triangle.triangle.a.clone() + position.clone();
-                triangle.triangle.b = triangle.triangle.b.clone() + position.clone();
-                triangle.triangle.c = triangle.triangle.c.clone() + position.clone();
-            }
-        };
+        let position = &transform.position;
+        let (i, j, k) = get_quaternion(transform.direction.x, transform.direction.y);
 
-        let apply_direction = {
-            let direction = &transform.direction;
-            move |triangle: &mut ColoredTriangle| {
-                let (i, j, k) = get_quaternion(direction.x, direction.y);
-                triangle.triangle.a = triangle.triangle.a.transform(&i, &j, &k);
-                triangle.triangle.b = triangle.triangle.b.transform(&i, &j, &k);
-                triangle.triangle.c = triangle.triangle.c.transform(&i, &j, &k);
-            }
-        };
-
-        self.0.iter_mut().for_each(|t| {
-            apply_direction(t);
-            apply_position(t);
+        self.0.iter_mut().for_each(|triangle| {
+            triangle.triangle.a = triangle.triangle.a.transform(&i, &j, &k) + position.clone();
+            triangle.triangle.b = triangle.triangle.b.transform(&i, &j, &k) + position.clone();
+            triangle.triangle.c = triangle.triangle.c.transform(&i, &j, &k) + position.clone();
         })
     }
 }
 
 pub fn get_quaternion(yaw: f32, pitch: f32) -> (Vector3, Vector3, Vector3) {
-    let i_yaw = Vector3 {x: yaw.cos(), y: 0.0, z: yaw.sin()};
-    let j_yaw = Vector3 {x: 0.0, y: 1.0, z: 0.0};
-    let k_yaw = Vector3 {x: -yaw.sin(), y: 0.0, z: yaw.cos()};
+    let i_yaw = Vector3 {
+        x: yaw.cos(),
+        y: 0.0,
+        z: yaw.sin(),
+    };
+    let j_yaw = Vector3 {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    };
+    let k_yaw = Vector3 {
+        x: -yaw.sin(),
+        y: 0.0,
+        z: yaw.cos(),
+    };
 
-    let i_pitch = Vector3 {x: 1.0, y: 0.0, z: 0.0};
-    let j_pitch = Vector3 {x: 0.0, y: pitch.cos(), z: -pitch.sin()};
-    let k_pitch = Vector3 {x: 0.0, y: pitch.sin(), z: pitch.cos()};
+    let i_pitch = Vector3 {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let j_pitch = Vector3 {
+        x: 0.0,
+        y: pitch.cos(),
+        z: -pitch.sin(),
+    };
+    let k_pitch = Vector3 {
+        x: 0.0,
+        y: pitch.sin(),
+        z: pitch.cos(),
+    };
 
     let i = i_pitch.transform(&i_yaw, &j_yaw, &k_yaw);
     let j = j_pitch.transform(&i_yaw, &j_yaw, &k_yaw);
@@ -179,49 +147,21 @@ pub fn get_quaternion(yaw: f32, pitch: f32) -> (Vector3, Vector3, Vector3) {
     (i, j, k)
 }
 
-pub fn fill_triangle_buffer(buffer: &mut [RGBA], triangle: &Triangle2, color: renderer::RGBA) {
-    let min_x = triangle.a.x.min(triangle.b.x).min(triangle.c.x);
-    let min_y = triangle.a.y.min(triangle.b.y).min(triangle.c.y);
-    let max_x = triangle.a.x.max(triangle.b.x).max(triangle.c.x);
-    let max_y = triangle.a.y.max(triangle.b.y).max(triangle.c.y);
-
-    let min_height = min_y as usize;
-    let min_width = min_x as usize;
-    let max_height = max_y.ceil() as usize;
-    let max_width = max_x.ceil() as usize;
-
-    for y in min_height.max(0)..max_height.min(HEIGHT) {
-        for x in min_width.max(0)..max_width.min(WIDTH) {
-            let p = Vector2 {
-                x: x as f32,
-                y: y as f32,
-            };
-            if triangle.point_in_triangle(&p) {
-                let index = y * WIDTH + x;
-                buffer[index] = color.clone();
-            }
-        }
-    }
-}
-
-
 fn world_to_screen(point: &Vector3, fov: f32) -> Vector2 {
     if fov <= 0.0 {
         panic!("FOV must be greater than 0");
     }
-    // TODO: Below should not be computed for every point
     let randiant_fov = fov * PI / 180.0;
     let world_unit = f32::tan(randiant_fov / 2.0) * 2.0;
     let mut pixels_per_world_unit = HEIGHT as f32 / world_unit;
     if point.z < 0.0 {
         pixels_per_world_unit /= point.z;
     }
-    let offset = Vector2 {
-        x: point.x * pixels_per_world_unit, y: point.y * pixels_per_world_unit,
-    };
+    let x_offset = point.x * pixels_per_world_unit;
+    let y_offset = point.y * pixels_per_world_unit;
     Vector2 {
-        x: HEIGHT as f32 / 2.0 + offset.x,
-        y: HEIGHT as f32 / 2.0 - offset.y,
+        x: HEIGHT as i32 / 2 + (x_offset as i32),
+        y: HEIGHT as i32 / 2 - (y_offset as i32),
     }
 }
 
@@ -234,7 +174,34 @@ pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle],
         let a = world_to_screen(&i.triangle.a, fov);
         let b = world_to_screen(&i.triangle.b, fov);
         let c = world_to_screen(&i.triangle.c, fov);
-        let triangle = Triangle2::new(a, b, c);
-        fill_triangle_buffer(pixels_buffer, &triangle, i.color.clone());
+
+        // Compute bounding box once for the triangle
+        let min_x = a.x.min(b.x).min(c.x).max(0);
+        let min_y = a.y.min(b.y).min(c.y).max(0);
+        let max_x = a.x.max(b.x).max(c.x).min(WIDTH as i32);
+        let max_y = a.y.max(b.y).max(c.y).min(HEIGHT as i32);
+
+        // Precompute edge functions for barycentric test
+        let ab = &b - &a;
+        let bc = &c - &b;
+        let ca = &a - &c;
+        let perp_ab = ab.perpendicular_clockwise();
+        let perp_bc = bc.perpendicular_clockwise();
+        let perp_ca = ca.perpendicular_clockwise();
+
+        for y in min_y..max_y {
+            for x in min_x..max_x {
+                let p = Vector2 { x, y };
+                let ap = &p - &a;
+                let bp = &p - &b;
+                let cp = &p - &c;
+                let inside =
+                    perp_ab.dot(&ap) >= 0 && perp_bc.dot(&bp) >= 0 && perp_ca.dot(&cp) >= 0;
+                if inside {
+                    let index = y * WIDTH as i32 + x;
+                    pixels_buffer[index as usize] = i.color.clone();
+                }
+            }
+        }
     }
 }
