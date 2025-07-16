@@ -112,9 +112,9 @@ pub struct Transform {
     pub direction: Vector3,
 }
 
-pub struct Model{ 
+pub struct Model {
     pub triangles: Vec<ColoredTriangle>,
-    pub transform: Transform
+    pub transform: Transform,
 }
 
 impl From<Vec<ColoredTriangle>> for Model {
@@ -122,25 +122,36 @@ impl From<Vec<ColoredTriangle>> for Model {
         Model {
             triangles,
             transform: Transform {
-                position: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-                direction: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+                position: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                direction: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
             },
         }
     }
 }
 
-
-
 impl Model {
-    pub fn apply_transform(&mut self, transform: &Transform) {
-        let position = &transform.position;
-        let (i, j, k) = get_quaternion(transform.direction.x, transform.direction.y);
+    pub fn apply_transform(&self) -> Vec<ColoredTriangle> {
+        let (i, j, k) = get_quaternion(self.transform.direction.x, self.transform.direction.y);
 
-        self.triangles.iter_mut().for_each(|triangle| {
-            triangle.triangle.a = triangle.triangle.a.transform(&i, &j, &k) + position.clone();
-            triangle.triangle.b = triangle.triangle.b.transform(&i, &j, &k) + position.clone();
-            triangle.triangle.c = triangle.triangle.c.transform(&i, &j, &k) + position.clone();
-        })
+        self.triangles
+            .iter()
+            .map(|triangle| ColoredTriangle {
+                triangle: Triangle3 {
+                    a: triangle.triangle.a.transform(&i, &j, &k) + self.transform.position.clone(),
+                    b: triangle.triangle.b.transform(&i, &j, &k) + self.transform.position.clone(),
+                    c: triangle.triangle.c.transform(&i, &j, &k) + self.transform.position.clone(),
+                },
+                color: triangle.color,
+            })
+            .collect()
     }
 }
 
@@ -200,7 +211,10 @@ fn world_to_screen(point: &Vector3, fov: f32) -> Vector2WithDepth {
         x: HEIGHT as i32 / 2 + (x_offset as i32),
         y: HEIGHT as i32 / 2 - (y_offset as i32),
     };
-    Vector2WithDepth { v: screen_point, depth: point.z }
+    Vector2WithDepth {
+        v: screen_point,
+        depth: point.z,
+    }
 }
 
 pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle], fov: f32) {
@@ -247,14 +261,17 @@ pub fn draw_triangles(pixels_buffer: &mut [RGBA], triangles: &[ColoredTriangle],
                     z: weight_c,
                 };
 
-                let depth = dot3(&weights, &Vector3 {
-                    x: a.depth,
-                    y: b.depth,
-                    z: c.depth,
-                });
+                let depth = dot3(
+                    &weights,
+                    &Vector3 {
+                        x: a.depth,
+                        y: b.depth,
+                        z: c.depth,
+                    },
+                );
 
                 let index = (y * WIDTH as i32 + x) as usize;
-                if inside && depth > depth_buffer[index]  {
+                if inside && depth > depth_buffer[index] {
                     pixels_buffer[index] = tri.color;
                     depth_buffer[index] = depth;
                 }
