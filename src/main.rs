@@ -116,10 +116,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         transform: cube_transform,
     };
 
+    let camera_transform = vector::Transform::default();
+    let camera = vector::Camera {
+        fov: 60.0,
+        transform: camera_transform,
+    };
+
     let pixels_clone = Arc::clone(&pixels);
 
     thread::spawn(move || {
-        let fov = 60.0;
         loop {
             {
                 let start = std::time::Instant::now();
@@ -137,7 +142,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     [transformed_monkey_triangles, transformed_cube_triangles].concat();
 
                 let draw_start = std::time::Instant::now();
-                draw_triangles(&mut pixels, &all_triangles, fov);
+                draw_triangles(&mut pixels, &all_triangles, camera.fov);
                 let draw_time = draw_start.elapsed();
 
                 let elapsed = start.elapsed();
@@ -158,6 +163,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         width: WIDTH,
         height: HEIGHT,
     };
+
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 

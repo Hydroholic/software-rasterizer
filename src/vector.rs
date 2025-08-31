@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use crate::{ColoredTriangle, HEIGHT, WIDTH, renderer::RGBA};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -107,6 +107,7 @@ pub struct Triangle3 {
     pub c: Vector3,
 }
 
+#[derive(Default)]
 pub struct Transform {
     pub position: Vector3,
     pub direction: Vector3,
@@ -153,6 +154,11 @@ impl Model {
             })
             .collect()
     }
+}
+
+pub struct Camera {
+    pub fov: f32,
+    pub transform: Transform,
 }
 
 pub fn get_quaternion(yaw: f32, pitch: f32) -> (Vector3, Vector3, Vector3) {
