@@ -1314,15 +1314,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
-name = "renderer"
-version = "0.1.0"
-dependencies = [
- "pixels",
- "rand",
- "winit",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1482,6 +1473,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "software-rasterizer"
+version = "0.1.0"
+dependencies = [
+ "pixels",
+ "rand",
+ "winit",
 ]
 
 [[package]]
